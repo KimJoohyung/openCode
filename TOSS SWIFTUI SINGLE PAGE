@@ -1,0 +1,142 @@
+//
+//  TossAPI.swift
+//
+//
+//  Created by 김주형 on 2023/08/03.
+// TOSS SPM 설치가 선행되어야 합니다 (꼭꼭)
+//. 우선 한개페이지에 모두 몰아놨습니다. 입맛에 맞게 쪼개서 파일에 분배해주세요
+
+import SwiftUI
+import TossPayments
+
+struct TossAPI: View {
+    @State private var showingSuccess: Bool = false
+    @State private var showingFail: Bool = false
+    @StateObject var viewModel = TossPaymentsContentViewModel()
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                PaymentMethodWidgetView(widget: viewModel.widget, amount: PaymentMethodWidget.Amount(value: 1000))
+                AgreementWidgetView(widget: viewModel.widget)
+            }
+        }
+        Button("결제하기") {
+            viewModel.requestPayment(info: DefaultWidgetPaymentInfo(orderId: viewModel.ORDERID, orderName: "김토스"))
+        }
+        .alert(isPresented: $showingSuccess, content: {
+            Alert(title: Text(verbatim: "Success"), message: Text(verbatim: viewModel.onSuccess?.orderId ?? ""))
+        })
+        .alert(isPresented: $showingFail, content: {
+            Alert(title: Text(verbatim: "Fail"), message: Text(verbatim: viewModel.onFail?.orderId ?? ""))
+        })
+        .onReceive(viewModel.$onSuccess.compactMap { $0 }) { success in
+            showingSuccess = true
+        }
+        .onReceive(viewModel.$onFail.compactMap { $0 }) { fail in
+            showingFail = true
+        }
+    }
+}
+
+struct TossAPI_Previews: PreviewProvider {
+    static var previews: some View {
+        TossAPI()
+    }
+}
+
+
+
+
+
+class TossPaymentsContentViewModel: ObservableObject {
+    let widget = PaymentWidget(clientKey: SecureKeys.TossTestClientKey.rawValue, customerKey: "Test")
+//SecureKeys.TossTestClientKey.rawValue = toss에서 상점등록후에 제공받은    key
+    let ORDERID = "9lD0azJWxjBY0KOIumGzH"
+
+    @Published
+    var isShowing: Bool = false
+    
+    @Published
+    var onSuccess: TossPaymentsResult.Success?
+    @Published
+    var onFail: TossPaymentsResult.Fail?
+    
+    init() {
+        widget.delegate = self
+    }
+    func requestPayment(info: WidgetPaymentInfo) {
+        widget.requestPayment(
+            info: DefaultWidgetPaymentInfo(orderId: ORDERID, orderName: "김토스"), on: ApplicationUtility.rootViewController
+        )
+    }
+}
+
+
+                              
+// MARK: - 결제성공 실패 DELEGATE
+extension TossPaymentsContentViewModel: TossPaymentsDelegate {
+    func handleSuccessResult(_ success: TossPaymentsResult.Success) {
+        print("success : \(success)")
+        onSuccess = success
+    }
+    
+    func handleFailResult(_ fail: TossPaymentsResult.Fail) {
+        onFail = fail
+    }
+}
+// MARK: - 위젯 뷰 <간편결제가능한 버튼은(naverpay, samsungpay......) 토스에 문의해서 간편결제 메뉴 확장할것>
+public struct PaymentMethodWidgetView: UIViewRepresentable {
+    public typealias UIViewType = PaymentMethodWidget
+    
+    private let widget: PaymentWidget
+    private var amount: PaymentMethodWidget.Amount
+    public init(
+        widget: PaymentWidget,
+        amount: PaymentMethodWidget.Amount
+    ) {
+        self.widget = widget
+        self.amount = amount
+    }
+    
+    public func makeUIView(context: Context) -> PaymentMethodWidget {
+        widget.renderPaymentMethods(amount: amount)
+    }
+    
+    public func updateUIView(_ uiView: PaymentMethodWidget, context: Context) {
+        
+    }
+}
+
+public struct AgreementWidgetView: UIViewRepresentable {
+    public typealias UIViewType = AgreementWidget
+    
+    private let widget: PaymentWidget
+    public init(
+        widget: PaymentWidget
+    ) {
+        self.widget = widget
+    }
+    
+    public func makeUIView(context: Context) -> AgreementWidget {
+        widget.renderAgreement()
+    }
+    
+    public func updateUIView(_ uiView: AgreementWidget, context: Context) {
+        
+    }
+}
+
+
+
+
+// MARK: - rootviewcontroller 에러 해결 (주석 풀면됨.)
+/*
+ final class ApplicationUtility{
+     static var rootViewController : UIViewController{
+         guard let screen = UIApplication.shared.connectedScenes.first as? UIWindowScene else {return .init()}
+         guard let root = screen.windows.first?.rootViewController else{return .init()}
+         return root
+     }
+ }
+ */
